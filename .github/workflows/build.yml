@@ -530,7 +530,7 @@ jobs:
 
     needs:
       - windows-latest-cmake
-      - windows-latest-cmake-cuda
+      - windows-2019-cmake-cuda
 
     steps:
       - name: Clone
