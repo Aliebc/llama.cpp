@@ -4,11 +4,16 @@
 // Note: Even when using identical normalized image inputs (see normalize_image_u8_to_f32()) we have a significant difference in resulting embeddings compared to pytorch
 #include "clip.h"
 #include "ggml.h"
+#include "ggml-cpu.h"
 #include "ggml-alloc.h"
 #include "ggml-backend.h"
 
 #ifdef GGML_USE_CUDA
 #include "ggml-cuda.h"
+#endif
+
+#ifdef GGML_USE_SYCL
+#include "ggml-sycl.h"
 #endif
 
 #ifdef GGML_USE_METAL
@@ -39,10 +44,17 @@
 #include <cinttypes>
 #include <limits>
 
-#define LOG_INF(...) do { fprintf(stdout, __VA_ARGS__); } while (0)
-#define LOG_WRN(...) do { fprintf(stderr, __VA_ARGS__); } while (0)
-#define LOG_ERR(...) do { fprintf(stderr, __VA_ARGS__); } while (0)
-#define LOG_DBG(...) do { fprintf(stderr, __VA_ARGS__); } while (0)
+#if defined(LLAVA_LOG_OFF)
+#   define LOG_INF(...)
+#   define LOG_WRN(...)
+#   define LOG_ERR(...)
+#   define LOG_DBG(...)
+#else // defined(LLAVA_LOG_OFF)
+#   define LOG_INF(...) do { fprintf(stdout, __VA_ARGS__); } while (0)
+#   define LOG_WRN(...) do { fprintf(stderr, __VA_ARGS__); } while (0)
+#   define LOG_ERR(...) do { fprintf(stderr, __VA_ARGS__); } while (0)
+#   define LOG_DBG(...) do { fprintf(stdout, __VA_ARGS__); } while (0)
+#endif // defined(LLAVA_LOG_OFF)
 
 //#define CLIP_DEBUG_FUNCTIONS
 
@@ -1159,6 +1171,11 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
 #ifdef GGML_USE_VULKAN
     new_clip->backend = ggml_backend_vk_init(0);
     LOG_INF("%s: CLIP using Vulkan backend\n", __func__);
+#endif
+
+#ifdef GGML_USE_SYCL
+    new_clip->backend = ggml_backend_sycl_init(0);
+    LOG_INF("%s: CLIP using SYCL backend\n", __func__);
 #endif
 
     if (!new_clip->backend) {
@@ -2443,12 +2460,6 @@ bool clip_image_batch_encode(clip_ctx * ctx, const int n_threads, const clip_ima
     if (ggml_backend_is_cpu(ctx->backend)) {
         ggml_backend_cpu_set_n_threads(ctx->backend, n_threads);
     }
-
-#ifdef GGML_USE_METAL
-    if (ggml_backend_is_metal(ctx->backend)) {
-        ggml_backend_metal_set_n_cb(ctx->backend, n_threads);
-    }
-#endif
 
     ggml_backend_graph_compute(ctx->backend, gf);
 
